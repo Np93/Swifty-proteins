@@ -51,7 +51,7 @@ struct SplashView: View {
 				}
 				.frame(height: 200)
 				Spacer()
-				Text("Copyright © 2025 cedmulle. All rights reserved.")
+				Text("Copyright © 2025 cedmulle x nhirzel. All rights reserved.")
 					.font(.footnote)
 					.opacity(0.7)
 					.padding(.bottom, 32)

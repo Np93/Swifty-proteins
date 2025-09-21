@@ -86,6 +86,9 @@ private struct AtomInfoBar: View {
     var body: some View {
         HStack(spacing: 10) {
             let info = PeriodicTable.shared.info(for: atom.symbol)
+			Circle()
+				.fill(Color(PeriodicTable.shared.color(for: atom.symbol) ?? .gray))
+				.frame(width: 12, height: 12)
             Text("\(atom.symbol)\(info?.name != nil ? " · \(info!.name!)" : "")")
                 .font(.headline)
                 .padding(.horizontal, 8)
@@ -110,9 +113,14 @@ private struct AtomInfoBar: View {
             }
         }
         .padding(10)
-        .background(Color("SectionColor"), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+		.background(Color("SectionColor"), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+		.overlay(
+			RoundedRectangle(cornerRadius: 10, style: .continuous)
+			.stroke(Color("SubColor").opacity(0.5), lineWidth: 0.5)
+		)
     }
 }
+
 private struct LigandControlBar: View {
     @Binding var style: GeometryStyle
     @Binding var displayMode: DisplayMode
@@ -365,7 +373,7 @@ struct Ligand3DSceneView: UIViewRepresentable {
                     onShareReady(nil)
                     return
                 }
-                let marked = ImageShareWriter.watermark(img, text: "cedmulle - 42swifty-companion")
+                let marked = ImageShareWriter.watermark(img, text: "cedmulle x nhirzel - 42swifty-companion")
                 let url = ImageShareWriter.writePNG(marked)
                 onShareReady(url)
             }

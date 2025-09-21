@@ -86,7 +86,7 @@ enum GeometryFactory {
         let perp = perpendicularUnitVector(from: aSurf, to: bSurf)
 
         let bondLen = CGFloat((bSurf - aSurf).length())
-        let baseR   = cfg.bondBaseRadius
+        let baseR   = cfg.bondBaseRadius * 0.6  // Réduire l'épaisseur de 40%
         let step    = max(baseR * (style == .aromatic ? 1.3 : 1.9), min(0.22, bondLen * 0.12))
         let rMain   = baseR * (style == .aromatic ? 0.80 : 1.00)
         let rSide   = baseR * (style == .aromatic ? 0.75 : 0.85)
@@ -154,12 +154,13 @@ enum GeometryFactory {
         return [left, right]
     }
 
+	/* decalage dans l'offset pour eviter que les extremites soient visibles */
     private static func endOffset(for style: GeometryStyle, radius: CGFloat, directionUnit u: SCNVector3) -> CGFloat {
         switch style {
         case .sphere, .spaceFilling:
-            return radius
+            return radius * 0.7
         case .cube:
-            let half = radius
+            let half = radius * 0.7
             let ux = max(0.0001, abs(CGFloat(u.x)))
             let uy = max(0.0001, abs(CGFloat(u.y)))
             let uz = max(0.0001, abs(CGFloat(u.z)))

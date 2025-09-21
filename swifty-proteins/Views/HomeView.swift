@@ -63,7 +63,7 @@ struct HomeView: View {
 		}
 		.padding(.horizontal)
 		.padding(.vertical, 8)
-		.background(Color(.systemGray6))
+		.background(Color("SectionColor"))
 	}
 
 	private func dismissKeyboard() {

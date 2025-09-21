@@ -76,8 +76,6 @@ struct LigandDetailView: View {
                             }
                             .frame(maxHeight: 140)
                         }
-
-                        Divider().padding(.top, 6)
                     }
                     Spacer()
                 }

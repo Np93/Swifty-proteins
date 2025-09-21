@@ -44,6 +44,10 @@ struct AuthTextField<FieldType: Hashable>: View {
         .padding(.horizontal, 12)
         .frame(height: 48)
         .background(Color("SectionColor"), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color("SubColor").opacity(0.5), lineWidth: 0.5)
+        )
         .foregroundStyle(Color("OnSectionColor"))
     }
 }
