@@ -504,7 +504,8 @@ struct Ligand3DSceneView: UIViewRepresentable {
         private func material(for symbol: String) -> SCNMaterial {
             let key = symbol.uppercased()
             if let m = materialCache[key] { return m }
-            let color = PeriodicTable.shared.color(for: key)
+
+            let color = PeriodicTable.shared.color(for: key) ?? UIColor.systemTeal // fallback
             let m = SCNMaterial()
             m.diffuse.contents = color
             m.metalness.contents = 0.05
@@ -586,7 +587,7 @@ struct Ligand3DSceneView: UIViewRepresentable {
                         m.emission.intensity = 0.0
                         m.transparency = 1.0
                         // <- remets la couleur CPK initiale
-                        m.diffuse.contents = PeriodicTable.shared.color(for: sym)
+                        m.diffuse.contents = PeriodicTable.shared.color(for: sym) ?? UIColor.systemTeal
                     }
                 }
 

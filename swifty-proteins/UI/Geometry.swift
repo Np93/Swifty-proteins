@@ -25,6 +25,19 @@ struct GeometryConfig {
 }
 
 enum GeometryFactory {
+    
+    private enum BondStyle { case normal, aromatic }
+
+        private static func visuals(for rawType: Int) -> (count: Int, style: BondStyle) {
+            switch rawType {
+            case 1: return (1, .normal)
+            case 2: return (2, .normal)
+            case 3: return (3, .normal)
+            case 4: return (2, .aromatic)   // standard visuel: 2 traits légèrement plus fins/rapprochés
+            default: return (1, .normal)
+            }
+        }
+    
     static func makeAtomNode(atom: LigandData.Atom, index: Int, cfg: GeometryConfig) -> SCNNode {
         let scale = cfg.scaleForSymbol(atom.symbol) // tu l’utilises déjà pour sphere/cube
         // base
@@ -42,11 +55,11 @@ enum GeometryFactory {
                 return SCNBox(width: s, height: s, length: s, chamferRadius: r * 0.15)
 
             case .spaceFilling:
-                // ↑ CPK : rayon proportionnel au VDW
-                let vdw = PeriodicTable.shared.vdwRadius(for: atom.symbol) // en Å
-                // normalise sur C=1.70 et booste un peu (×1.6) pour un rendu "plein"
-                let cpkScale = (vdw / 1.70) * 1.6
-                let R = cfg.atomBaseRadius * cpkScale
+                // Rayon CPK = rayon de van der Waals en Å (directement)
+                let vdw: CGFloat = PeriodicTable.shared.vdwRadius(for: atom.symbol) ?? 1.70
+                // petit facteur facultatif si tu veux un rendu plus "plein"
+                let cpkFactor: CGFloat = 1.0   // essaie 1.0 à 1.1
+                let R: CGFloat = vdw * cpkFactor
                 let g = SCNSphere(radius: R)
                 g.segmentCount = 48
                 return g
@@ -60,36 +73,79 @@ enum GeometryFactory {
         return node
     }
 
-    static func makeBondNodes(order: Int,
+    static func makeBondNodes(order rawOrder: Int,
                               from aCenter: SCNVector3,
                               to bCenter: SCNVector3,
                               aRadius: CGFloat,
                               bRadius: CGFloat,
                               cfg: GeometryConfig) -> [SCNNode] {
-        var nodes: [SCNNode] = []
+
+        let (count, style) = visuals(for: rawOrder)
+
+        // Direction et points de contact avec les atomes
         let u = (bCenter - aCenter).normalized()
         let aTrim = endOffset(for: cfg.style, radius: aRadius, directionUnit: u)
         let bTrim = endOffset(for: cfg.style, radius: bRadius, directionUnit: -u)
         let aSurf = aCenter + u * Float(aTrim)
         let bSurf = bCenter - u * Float(bTrim)
 
-        let main = cylinderNode(from: aSurf, to: bSurf, radius: cfg.bondBaseRadius)
-        main.geometry?.materials = [cfg.bondMaterial]
-        main.name = "bond"
-        if order <= 1 { return [main] }
-        nodes.append(main)
+        // Axe perpendiculaire pour écarter les traits multiples
+        let perp = perpendicularUnitVector(from: aSurf, to: bSurf)
 
-        let offsetAxis = perpendicularUnitVector(from: aSurf, to: bSurf) * Float(cfg.bondBaseRadius * 1.8)
-        let count = order
-        let start = -(count - 1) / 2
-        for t in 0..<count {
-            if t == (count / 2) { continue }
-            let o = offsetAxis * Float(t + start)
-            let extra = cylinderNode(from: aSurf + o, to: bSurf + o, radius: cfg.bondBaseRadius * 0.85)
-            extra.geometry?.materials = [cfg.bondMaterial]
-            extra.name = "bond"
-            nodes.append(extra)
+        // Paramètres visuels
+        let baseR = cfg.bondBaseRadius
+        let step  = baseR * (style == .aromatic ? 1.10 : 1.80)   // écart latéral
+        let rMain = baseR * (style == .aromatic ? 0.80 : 1.00)
+        let rSide = baseR * (style == .aromatic ? 0.75 : 0.85)
+
+        var nodes: [SCNNode] = []
+
+        switch count {
+        case 1:
+            // simple : un trait central
+            let n = cylinderNode(from: aSurf, to: bSurf, radius: rMain)
+            n.geometry?.materials = [cfg.bondMaterial]
+            n.name = "bond"
+            nodes.append(n)
+
+        case 2:
+            // double : deux traits symétriques (pas de central)
+            let offsets: [Float] = [ -Float(step)*0.5, +Float(step)*0.5 ]
+            for o in offsets {
+                let off = perp * o
+                let n = cylinderNode(from: aSurf + off, to: bSurf + off, radius: rSide)
+                n.geometry?.materials = [cfg.bondMaterial]
+                n.name = "bond"
+                nodes.append(n)
+            }
+
+        case 3:
+            // triple : un central + deux latéraux
+            // central
+            do {
+                let n = cylinderNode(from: aSurf, to: bSurf, radius: rMain)
+                n.geometry?.materials = [cfg.bondMaterial]
+                n.name = "bond"
+                nodes.append(n)
+            }
+            // latéraux
+            let offsets: [Float] = [ -Float(step), +Float(step) ]
+            for o in offsets {
+                let off = perp * o
+                let n = cylinderNode(from: aSurf + off, to: bSurf + off, radius: rSide)
+                n.geometry?.materials = [cfg.bondMaterial]
+                n.name = "bond"
+                nodes.append(n)
+            }
+
+        default:
+            // fallback : un trait central
+            let n = cylinderNode(from: aSurf, to: bSurf, radius: rMain)
+            n.geometry?.materials = [cfg.bondMaterial]
+            n.name = "bond"
+            nodes.append(n)
         }
+
         return nodes
     }
 
