@@ -496,7 +496,13 @@ struct Ligand3DSceneView: UIViewRepresentable {
                 let bScale = PeriodicTable.shared.scale(for: mol.atoms[i2].symbol) ?? 1.0
                 let aR = atomRadius * aScale
                 let bR = atomRadius * bScale
-                let nodes = GeometryFactory.makeBondNodes(order: b.order, from: n1, to: n2, aRadius: aR, bRadius: bR, cfg: cfg)
+                let symA = mol.atoms[i1].symbol
+                let symB = mol.atoms[i2].symbol
+                let nodes = GeometryFactory.makeBondNodes(order: b.order,
+                                                          from: n1, to: n2,
+                                                          aRadius: aR, bRadius: bR,
+                                                          cfg: cfg,
+                                                          symA: symA, symB: symB)
                 nodes.forEach { root.addChildNode($0) }
             }
         }

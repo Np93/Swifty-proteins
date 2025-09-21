@@ -4,13 +4,13 @@ import UIKit
 enum GeometryStyle: String, CaseIterable, Identifiable {
     case sphere
     case cube
-    case spaceFilling        // ← NEW
+    case spaceFilling
     var id: String { rawValue }
     var title: String {
         switch self {
         case .sphere: return "Sphérique"
         case .cube: return "Cubique"
-        case .spaceFilling: return "CPK (Space-filling)"  // ← NEW
+        case .spaceFilling: return "CPK (Space-filling)"
         }
     }
 }
@@ -25,44 +25,37 @@ struct GeometryConfig {
 }
 
 enum GeometryFactory {
-    
-    private enum BondStyle { case normal, aromatic }
 
-        private static func visuals(for rawType: Int) -> (count: Int, style: BondStyle) {
-            switch rawType {
-            case 1: return (1, .normal)
-            case 2: return (2, .normal)
-            case 3: return (3, .normal)
-            case 4: return (2, .aromatic)   // standard visuel: 2 traits légèrement plus fins/rapprochés
-            default: return (1, .normal)
-            }
+    // ----- Bond visuals -----
+    private enum BondStyle { case normal, aromatic }
+    private static func visuals(for rawType: Int) -> (count: Int, style: BondStyle) {
+        switch rawType {
+        case 1: return (1, .normal)
+        case 2: return (2, .normal)
+        case 3: return (3, .normal)
+        case 4: return (2, .aromatic)   // aromatique: 2 traits fins/rapprochés
+        default: return (1, .normal)
         }
-    
+    }
+
+    // ----- ATOM NODES -----
     static func makeAtomNode(atom: LigandData.Atom, index: Int, cfg: GeometryConfig) -> SCNNode {
-        let scale = cfg.scaleForSymbol(atom.symbol) // tu l’utilises déjà pour sphere/cube
-        // base
+        let scale = cfg.scaleForSymbol(atom.symbol)
         let r = cfg.atomBaseRadius * scale
 
         let geometry: SCNGeometry = {
             switch cfg.style {
             case .sphere:
-                let g = SCNSphere(radius: r)
-                g.segmentCount = 48
-                return g
-
+                let g = SCNSphere(radius: r); g.segmentCount = 48; return g
             case .cube:
                 let s = r * 2
                 return SCNBox(width: s, height: s, length: s, chamferRadius: r * 0.15)
-
             case .spaceFilling:
-                // Rayon CPK = rayon de van der Waals en Å (directement)
+                // CPK: rayon = Van der Waals (Å) directement
                 let vdw: CGFloat = PeriodicTable.shared.vdwRadius(for: atom.symbol) ?? 1.70
-                // petit facteur facultatif si tu veux un rendu plus "plein"
-                let cpkFactor: CGFloat = 1.0   // essaie 1.0 à 1.1
+                let cpkFactor: CGFloat = 1.0 // 1.0–1.1 si tu veux combler un peu
                 let R: CGFloat = vdw * cpkFactor
-                let g = SCNSphere(radius: R)
-                g.segmentCount = 48
-                return g
+                let g = SCNSphere(radius: R); g.segmentCount = 48; return g
             }
         }()
 
@@ -73,80 +66,103 @@ enum GeometryFactory {
         return node
     }
 
+    // ----- BOND NODES (moitié–moitié, doubles/triples espacés) -----
     static func makeBondNodes(order rawOrder: Int,
                               from aCenter: SCNVector3,
                               to bCenter: SCNVector3,
                               aRadius: CGFloat,
                               bRadius: CGFloat,
-                              cfg: GeometryConfig) -> [SCNNode] {
+                              cfg: GeometryConfig,
+                              symA: String,
+                              symB: String) -> [SCNNode] {
+
+        // En CPK on ne trace pas les bâtons
+        if cfg.style == .spaceFilling { return [] }
 
         let (count, style) = visuals(for: rawOrder)
 
-        // Direction et points de contact avec les atomes
+        // direction + points d’attache sur la surface des atomes
         let u = (bCenter - aCenter).normalized()
         let aTrim = endOffset(for: cfg.style, radius: aRadius, directionUnit: u)
         let bTrim = endOffset(for: cfg.style, radius: bRadius, directionUnit: -u)
         let aSurf = aCenter + u * Float(aTrim)
         let bSurf = bCenter - u * Float(bTrim)
 
-        // Axe perpendiculaire pour écarter les traits multiples
+        // axe perpendiculaire pour écarter les traits multiples
         let perp = perpendicularUnitVector(from: aSurf, to: bSurf)
 
-        // Paramètres visuels
-        let baseR = cfg.bondBaseRadius
-        let step  = baseR * (style == .aromatic ? 1.10 : 1.80)   // écart latéral
-        let rMain = baseR * (style == .aromatic ? 0.80 : 1.00)
-        let rSide = baseR * (style == .aromatic ? 0.75 : 0.85)
+        // écart & rayons
+        let bondLen = CGFloat((bSurf - aSurf).length())
+        let baseR   = cfg.bondBaseRadius
+        let step    = max(baseR * (style == .aromatic ? 1.3 : 1.9), min(0.22, bondLen * 0.12))
+        let rMain   = baseR * (style == .aromatic ? 0.80 : 1.00)
+        let rSide   = baseR * (style == .aromatic ? 0.75 : 0.85)
+
+        // matériaux moitié–moitié (couleur de chaque atome)
+        let matA = cfg.materialForSymbol(symA)
+        let matB = cfg.materialForSymbol(symB)
 
         var nodes: [SCNNode] = []
 
         switch count {
         case 1:
-            // simple : un trait central
-            let n = cylinderNode(from: aSurf, to: bSurf, radius: rMain)
-            n.geometry?.materials = [cfg.bondMaterial]
-            n.name = "bond"
-            nodes.append(n)
+            nodes += splitColoredBond(from: aSurf, to: bSurf, offsetVec: SCNVector3Zero,
+                                      radius: rMain, matA: matA, matB: matB)
 
         case 2:
-            // double : deux traits symétriques (pas de central)
-            let offsets: [Float] = [ -Float(step)*0.5, +Float(step)*0.5 ]
-            for o in offsets {
-                let off = perp * o
-                let n = cylinderNode(from: aSurf + off, to: bSurf + off, radius: rSide)
-                n.geometry?.materials = [cfg.bondMaterial]
-                n.name = "bond"
-                nodes.append(n)
+            let offs: [CGFloat] = [ -step * 0.5, +step * 0.5 ]
+            for s in offs {
+                let off = perp * Float(s)
+                nodes += splitColoredBond(from: aSurf, to: bSurf, offsetVec: off,
+                                          radius: rSide, matA: matA, matB: matB)
             }
 
         case 3:
-            // triple : un central + deux latéraux
-            // central
-            do {
-                let n = cylinderNode(from: aSurf, to: bSurf, radius: rMain)
-                n.geometry?.materials = [cfg.bondMaterial]
-                n.name = "bond"
-                nodes.append(n)
-            }
-            // latéraux
-            let offsets: [Float] = [ -Float(step), +Float(step) ]
-            for o in offsets {
-                let off = perp * o
-                let n = cylinderNode(from: aSurf + off, to: bSurf + off, radius: rSide)
-                n.geometry?.materials = [cfg.bondMaterial]
-                n.name = "bond"
-                nodes.append(n)
+            nodes += splitColoredBond(from: aSurf, to: bSurf, offsetVec: SCNVector3Zero,
+                                      radius: rMain, matA: matA, matB: matB)
+            let offs: [CGFloat] = [ -step, +step ]
+            for s in offs {
+                let off = perp * Float(s)
+                nodes += splitColoredBond(from: aSurf, to: bSurf, offsetVec: off,
+                                          radius: rSide, matA: matA, matB: matB)
             }
 
         default:
-            // fallback : un trait central
-            let n = cylinderNode(from: aSurf, to: bSurf, radius: rMain)
-            n.geometry?.materials = [cfg.bondMaterial]
-            n.name = "bond"
-            nodes.append(n)
+            nodes += splitColoredBond(from: aSurf, to: bSurf, offsetVec: SCNVector3Zero,
+                                      radius: rMain, matA: matA, matB: matB)
         }
 
         return nodes
+    }
+
+    // ----- Helpers privés -----
+
+    // cylindre orienté avec matériau
+    private static func cylinderNode(from: SCNVector3, to: SCNVector3, radius: CGFloat, material: SCNMaterial) -> SCNNode {
+        let dir = to - from
+        let h = CGFloat(dir.length())
+        let g = SCNCylinder(radius: radius, height: h)
+        g.firstMaterial = material
+        let n = SCNNode(geometry: g)
+        n.position = (from + to) * 0.5
+        orient(node: n, along: dir)
+        return n
+    }
+
+    // un “trait” de liaison en 2 demi-cylindres (couleur A côté A, couleur B côté B)
+    private static func splitColoredBond(from aSurf: SCNVector3,
+                                         to bSurf: SCNVector3,
+                                         offsetVec: SCNVector3,
+                                         radius: CGFloat,
+                                         matA: SCNMaterial,
+                                         matB: SCNMaterial) -> [SCNNode] {
+        let p0  = aSurf + offsetVec
+        let p1  = bSurf + offsetVec
+        let mid = (p0 + p1) * 0.5
+        let left  = cylinderNode(from: p0,  to: mid, radius: radius, material: matA)
+        let right = cylinderNode(from: mid, to: p1,  radius: radius, material: matB)
+        left.name = "bond"; right.name = "bond"
+        return [left, right]
     }
 
     private static func endOffset(for style: GeometryStyle, radius: CGFloat, directionUnit u: SCNVector3) -> CGFloat {
@@ -162,20 +178,10 @@ enum GeometryFactory {
         }
     }
 
-    private static func cylinderNode(from: SCNVector3, to: SCNVector3, radius: CGFloat) -> SCNNode {
-        let dir = to - from
-        let h = CGFloat(dir.length())
-        let g = SCNCylinder(radius: radius, height: h)
-        let n = SCNNode(geometry: g)
-        n.position = (from + to) * 0.5
-        orient(node: n, along: dir)
-        return n
-    }
-
     private static func orient(node: SCNNode, along dir: SCNVector3) {
         let yAxis = SCNVector3(0, 1, 0)
-        let axis = yAxis.cross(dir).normalized()
-        let dotv = max(min(yAxis.normalized().dot(dir.normalized()), 1.0), -1.0)
+        let axis  = yAxis.cross(dir).normalized()
+        let dotv  = max(min(yAxis.normalized().dot(dir.normalized()), 1.0), -1.0)
         let angle = acos(dotv)
         if !angle.isNaN, angle != 0 {
             node.rotation = SCNVector4(axis.x, axis.y, axis.z, angle)
