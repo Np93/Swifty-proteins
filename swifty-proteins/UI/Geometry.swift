@@ -26,19 +26,17 @@ struct GeometryConfig {
 
 enum GeometryFactory {
 
-    // ----- Bond visuals -----
     private enum BondStyle { case normal, aromatic }
     private static func visuals(for rawType: Int) -> (count: Int, style: BondStyle) {
         switch rawType {
         case 1: return (1, .normal)
         case 2: return (2, .normal)
         case 3: return (3, .normal)
-        case 4: return (2, .aromatic)   // aromatique: 2 traits fins/rapprochés
+        case 4: return (2, .aromatic)
         default: return (1, .normal)
         }
     }
 
-    // ----- ATOM NODES -----
     static func makeAtomNode(atom: LigandData.Atom, index: Int, cfg: GeometryConfig) -> SCNNode {
         let scale = cfg.scaleForSymbol(atom.symbol)
         let r = cfg.atomBaseRadius * scale
@@ -53,7 +51,7 @@ enum GeometryFactory {
             case .spaceFilling:
                 // CPK: rayon = Van der Waals (Å) directement
                 let vdw: CGFloat = PeriodicTable.shared.vdwRadius(for: atom.symbol) ?? 1.70
-                let cpkFactor: CGFloat = 1.0 // 1.0–1.1 si tu veux combler un peu
+                let cpkFactor: CGFloat = 1.0
                 let R: CGFloat = vdw * cpkFactor
                 let g = SCNSphere(radius: R); g.segmentCount = 48; return g
             }
@@ -66,7 +64,6 @@ enum GeometryFactory {
         return node
     }
 
-    // ----- BOND NODES (moitié–moitié, doubles/triples espacés) -----
     static func makeBondNodes(order rawOrder: Int,
                               from aCenter: SCNVector3,
                               to bCenter: SCNVector3,
@@ -76,29 +73,25 @@ enum GeometryFactory {
                               symA: String,
                               symB: String) -> [SCNNode] {
 
-        // En CPK on ne trace pas les bâtons
         if cfg.style == .spaceFilling { return [] }
 
         let (count, style) = visuals(for: rawOrder)
 
-        // direction + points d’attache sur la surface des atomes
         let u = (bCenter - aCenter).normalized()
         let aTrim = endOffset(for: cfg.style, radius: aRadius, directionUnit: u)
         let bTrim = endOffset(for: cfg.style, radius: bRadius, directionUnit: -u)
         let aSurf = aCenter + u * Float(aTrim)
         let bSurf = bCenter - u * Float(bTrim)
 
-        // axe perpendiculaire pour écarter les traits multiples
         let perp = perpendicularUnitVector(from: aSurf, to: bSurf)
 
-        // écart & rayons
         let bondLen = CGFloat((bSurf - aSurf).length())
         let baseR   = cfg.bondBaseRadius
         let step    = max(baseR * (style == .aromatic ? 1.3 : 1.9), min(0.22, bondLen * 0.12))
         let rMain   = baseR * (style == .aromatic ? 0.80 : 1.00)
         let rSide   = baseR * (style == .aromatic ? 0.75 : 0.85)
 
-        // matériaux moitié–moitié (couleur de chaque atome)
+        // ligand moitié–moitié (couleur de chaque atome)
         let matA = cfg.materialForSymbol(symA)
         let matB = cfg.materialForSymbol(symB)
 
@@ -135,9 +128,6 @@ enum GeometryFactory {
         return nodes
     }
 
-    // ----- Helpers privés -----
-
-    // cylindre orienté avec matériau
     private static func cylinderNode(from: SCNVector3, to: SCNVector3, radius: CGFloat, material: SCNMaterial) -> SCNNode {
         let dir = to - from
         let h = CGFloat(dir.length())
@@ -149,7 +139,6 @@ enum GeometryFactory {
         return n
     }
 
-    // un “trait” de liaison en 2 demi-cylindres (couleur A côté A, couleur B côté B)
     private static func splitColoredBond(from aSurf: SCNVector3,
                                          to bSurf: SCNVector3,
                                          offsetVec: SCNVector3,

@@ -126,7 +126,6 @@ private struct LigandControlBar: View {
     var body: some View {
         Group {
             if hSize == .compact && vSize == .regular {
-                // iPhone portrait : version compacte (menu + boutons)
                 HStack(spacing: 8) {
                     Menu {
                         Picker("Forme", selection: $style) {
@@ -165,7 +164,6 @@ private struct LigandControlBar: View {
                     .buttonStyle(PillIconButton())
                 }
             } else {
-                // iPhone paysage / iPad : version luxe (segments + boutons)
                 VStack(alignment: .leading, spacing: 8) {
                     Picker("Forme", selection: $style) {
                         ForEach(GeometryStyle.allCases) { s in
@@ -196,7 +194,7 @@ private struct LigandControlBar: View {
                                     .imageScale(.medium)
                             }
                         }
-                        .labelStyle(.iconOnly) // icônes seules pour rester compact
+                        .labelStyle(.iconOnly)
                         .buttonStyle(PillIconButton())
                     }
                 }
@@ -218,7 +216,6 @@ private struct LigandControlBar: View {
     }
 }
 
-// petit style de bouton pilule
 private struct PillIconButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -592,7 +589,7 @@ struct Ligand3DSceneView: UIViewRepresentable {
                         m.emission.contents = UIColor.black
                         m.emission.intensity = 0.0
                         m.transparency = 1.0
-                        // <- remets la couleur CPK initiale
+                        // remets la couleur CPK initiale
                         m.diffuse.contents = PeriodicTable.shared.color(for: sym) ?? UIColor.systemTeal
                     }
                 }
@@ -618,7 +615,7 @@ struct Ligand3DSceneView: UIViewRepresentable {
             let atoms = molecule.atoms
             guard !atoms.isEmpty else { return }
 
-            // positions depuis le modèle (plus robuste que lire les nodes)
+            // positions depuis le modèle
             let pos: [SCNVector3] = atoms.map { SCNVector3($0.x, $0.y, $0.z) }
 
             let mat = SCNMaterial()
@@ -659,7 +656,7 @@ struct Ligand3DSceneView: UIViewRepresentable {
             g.firstMaterial = material
             let n = SCNNode(geometry: g)
             n.position = (from + to) * 0.5
-            orient(node: n, along: dir) // <-- utilise ta méthode existante
+            orient(node: n, along: dir)
             return n
         }
         
@@ -690,7 +687,7 @@ struct Ligand3DSceneView: UIViewRepresentable {
                 guard let name = n.name, name.hasPrefix("atom_"),
                       let idStr = name.split(separator: "_").last,
                       let i = Int(idStr) else { return }
-                let t = 1.0 - CGFloat(counts[i] - minC) / CGFloat(range) // 0 enterré -> 1 exposé
+                let t = 1.0 - CGFloat(counts[i] - minC) / CGFloat(range) // 0 enterré 1 exposé
                 let col = heatColor(t)
                 if let m = n.geometry?.firstMaterial {
                     m.emission.contents = col
@@ -704,7 +701,7 @@ struct Ligand3DSceneView: UIViewRepresentable {
         private func heatColor(_ t: CGFloat) -> UIColor {
             let x = max(0, min(1, t))
             if x < 0.5 {
-                let u = x / 0.5        // 0..1
+                let u = x / 0.5
                 return UIColor(red: u, green: 0.8, blue: 1.0, alpha: 1.0)   // bleu -> cyan
             } else {
                 let u = (x - 0.5) / 0.5
